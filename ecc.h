@@ -26,13 +26,11 @@ with strange assembler messages.
 #endif
 
 /* Curve selection options. */
-#define secp128r1 16
-#define secp192r1 24
-#define secp256r1 32
-#define secp384r1 48
+#define secp256k1 32
 #ifndef ECC_CURVE
-    #define ECC_CURVE secp192r1
+    #define ECC_CURVE secp256k1
 #endif
+
 
 #if (ECC_CURVE != secp128r1 && ECC_CURVE != secp192r1 && ECC_CURVE != secp256r1 && ECC_CURVE != secp384r1)
     #error "Must define ECC_CURVE to one of the available curves"
