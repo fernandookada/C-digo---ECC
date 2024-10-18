@@ -5,15 +5,14 @@
 #include <stdint.h>
 
 /* Curve selection options. */
-#define secp128r1 16
-#define secp192r1 24
-#define secp256r1 32
-#define secp384r1 48
+
+#define secp256k1 32
+
 #ifndef ECC_CURVE
-    #define ECC_CURVE secp256r1
+    #define ECC_CURVE secp256k1
 #endif
 
-#if (ECC_CURVE != secp128r1 && ECC_CURVE != secp192r1 && ECC_CURVE != secp256r1 && ECC_CURVE != secp384r1)
+#if (ECC_CURVE != secp128r1 && ECC_CURVE != secp192r1 && ECC_CURVE != secp256k1 && ECC_CURVE != secp384r1)
     #error "Must define ECC_CURVE to one of the available curves"
 #endif
 
@@ -121,36 +120,15 @@ typedef struct EccPoint
 #define CONCAT1(a, b) a##b
 #define CONCAT(a, b) CONCAT1(a, b)
 
-#define Curve_P_16 {0xFFFFFFFFFFFFFFFF, 0xFFFFFFFDFFFFFFFF}
-#define Curve_P_24 {0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFFFFFFFFFEull, 0xFFFFFFFFFFFFFFFFull}
 #define Curve_P_32 {0xFFFFFFFFFFFFFFFFull, 0x00000000FFFFFFFFull, 0x0000000000000000ull, 0xFFFFFFFF00000001ull}
-#define Curve_P_48 {0x00000000FFFFFFFF, 0xFFFFFFFF00000000, 0xFFFFFFFFFFFFFFFE, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF}
 
-#define Curve_B_16 {0xD824993C2CEE5ED3, 0xE87579C11079F43D}
-#define Curve_B_24 {0xFEB8DEECC146B9B1ull, 0x0FA7E9AB72243049ull, 0x64210519E59C80E7ull}
 #define Curve_B_32 {0x3BCE3C3E27D2604Bull, 0x651D06B0CC53B0F6ull, 0xB3EBBD55769886BCull, 0x5AC635D8AA3A93E7ull}
-#define Curve_B_48 {0x2A85C8EDD3EC2AEF, 0xC656398D8A2ED19D, 0x0314088F5013875A, 0x181D9C6EFE814112, 0x988E056BE3F82D19, 0xB3312FA7E23EE7E4}
-
-#define Curve_G_16 { \
-    {0x0C28607CA52C5B86, 0x161FF7528B899B2D}, \
-    {0xC02DA292DDED7A83, 0xCF5AC8395BAFEB13}}
-
-#define Curve_G_24 { \
-    {0xF4FF0AFD82FF1012ull, 0x7CBF20EB43A18800ull, 0x188DA80EB03090F6ull}, \
-    {0x73F977A11E794811ull, 0x631011ED6B24CDD5ull, 0x07192B95FFC8DA78ull}}
 
 #define Curve_G_32 { \
     {0xF4A13945D898C296ull, 0x77037D812DEB33A0ull, 0xF8BCE6E563A440F2ull, 0x6B17D1F2E12C4247ull}, \
     {0xCBB6406837BF51F5ull, 0x2BCE33576B315ECEull, 0x8EE7EB4A7C0F9E16ull, 0x4FE342E2FE1A7F9Bull}}
 
-#define Curve_G_48 { \
-    {0x3A545E3872760AB7, 0x5502F25DBF55296C, 0x59F741E082542A38, 0x6E1D3B628BA79B98, 0x8EB1C71EF320AD74, 0xAA87CA22BE8B0537}, \
-    {0x7A431D7C90EA0E5F, 0x0A60B1CE1D7E819D, 0xE9DA3113B5F0B8C0, 0xF8F41DBD289A147C, 0x5D9E98BF9292DC29, 0x3617DE4A96262C6F}}
-
-#define Curve_N_16 {0x75A30D1B9038A115, 0xFFFFFFFE00000000}
-#define Curve_N_24 {0x146BC9B1B4D22831ull, 0xFFFFFFFF99DEF836ull, 0xFFFFFFFFFFFFFFFFull}
 #define Curve_N_32 {0xF3B9CAC2FC632551ull, 0xBCE6FAADA7179E84ull, 0xFFFFFFFFFFFFFFFFull, 0xFFFFFFFF00000000ull}
-#define Curve_N_48 {0xECEC196ACCC52973, 0x581A0DB248B0A77A, 0xC7634D81F4372DDF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF, 0xFFFFFFFFFFFFFFFF}
 
 static uint64_t curve_p[NUM_ECC_DIGITS] = CONCAT(Curve_P_, ECC_CURVE);
 static uint64_t curve_b[NUM_ECC_DIGITS] = CONCAT(Curve_B_, ECC_CURVE);
@@ -552,77 +530,8 @@ static void vli_modSub(uint64_t *p_result, uint64_t *p_left, uint64_t *p_right, 
     }
 }
 
-#if ECC_CURVE == secp128r1
 
-/* Computes p_result = p_product % curve_p.
-   See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
-static void vli_mmod_fast(uint64_t *p_result, uint64_t *p_product)
-{
-    uint64_t l_tmp[NUM_ECC_DIGITS];
-    int l_carry;
-
-    vli_set(p_result, p_product);
-
-    l_tmp[0] = p_product[2];
-    l_tmp[1] = (p_product[3] & 0x1FFFFFFFFull) | (p_product[2] << 33);
-    l_carry = vli_add(p_result, p_result, l_tmp);
-
-    l_tmp[0] = (p_product[2] >> 31) | (p_product[3] << 33);
-    l_tmp[1] = (p_product[3] >> 31) | ((p_product[2] & 0xFFFFFFFF80000000ull) << 2);
-    l_carry += vli_add(p_result, p_result, l_tmp);
-
-    l_tmp[0] = (p_product[2] >> 62) | (p_product[3] << 2);
-    l_tmp[1] = (p_product[3] >> 62) | ((p_product[2] & 0xC000000000000000ull) >> 29) | (p_product[3] << 35);
-    l_carry += vli_add(p_result, p_result, l_tmp);
-
-    l_tmp[0] = (p_product[3] >> 29);
-    l_tmp[1] = ((p_product[3] & 0xFFFFFFFFE0000000ull) << 4);
-    l_carry += vli_add(p_result, p_result, l_tmp);
-
-    l_tmp[0] = (p_product[3] >> 60);
-    l_tmp[1] = (p_product[3] & 0xFFFFFFFE00000000ull);
-    l_carry += vli_add(p_result, p_result, l_tmp);
-
-    l_tmp[0] = 0;
-    l_tmp[1] = ((p_product[3] & 0xF000000000000000ull) >> 27);
-    l_carry += vli_add(p_result, p_result, l_tmp);
-
-    while(l_carry || vli_cmp(curve_p, p_result) != 1)
-    {
-        l_carry -= vli_sub(p_result, p_result, curve_p);
-    }
-}
-
-#elif ECC_CURVE == secp192r1
-
-/* Computes p_result = p_product % curve_p.
-   See algorithm 5 and 6 from http://www.isys.uni-klu.ac.at/PDF/2001-0126-MT.pdf */
-static void vli_mmod_fast(uint64_t *p_result, uint64_t *p_product)
-{
-    uint64_t l_tmp[NUM_ECC_DIGITS];
-    int l_carry;
-
-    vli_set(p_result, p_product);
-
-    vli_set(l_tmp, &p_product[3]);
-    l_carry = vli_add(p_result, p_result, l_tmp);
-
-    l_tmp[0] = 0;
-    l_tmp[1] = p_product[3];
-    l_tmp[2] = p_product[4];
-    l_carry += vli_add(p_result, p_result, l_tmp);
-
-    l_tmp[0] = l_tmp[1] = p_product[5];
-    l_tmp[2] = 0;
-    l_carry += vli_add(p_result, p_result, l_tmp);
-
-    while(l_carry || vli_cmp(curve_p, p_result) != 1)
-    {
-        l_carry -= vli_sub(p_result, p_result, curve_p);
-    }
-}
-
-#elif ECC_CURVE == secp256r1
+#if ECC_CURVE == secp256k1
 
 /* Computes p_result = p_product % curve_p
    from http://www.nsa.gov/ia/_files/nist-routines.pdf */
@@ -707,70 +616,6 @@ static void vli_mmod_fast(uint64_t *p_result, uint64_t *p_product)
     }
 }
 
-#elif ECC_CURVE == secp384r1
-
-static void omega_mult(uint64_t *p_result, uint64_t *p_right)
-{
-    uint64_t l_tmp[NUM_ECC_DIGITS];
-    uint64_t l_carry, l_diff;
-
-    /* Multiply by (2^128 + 2^96 - 2^32 + 1). */
-    vli_set(p_result, p_right); /* 1 */
-    l_carry = vli_lshift(l_tmp, p_right, 32);
-    p_result[1 + NUM_ECC_DIGITS] = l_carry + vli_add(p_result + 1, p_result + 1, l_tmp); /* 2^96 + 1 */
-    p_result[2 + NUM_ECC_DIGITS] = vli_add(p_result + 2, p_result + 2, p_right); /* 2^128 + 2^96 + 1 */
-    l_carry += vli_sub(p_result, p_result, l_tmp); /* 2^128 + 2^96 - 2^32 + 1 */
-    l_diff = p_result[NUM_ECC_DIGITS] - l_carry;
-    if(l_diff > p_result[NUM_ECC_DIGITS])
-    { /* Propagate borrow if necessary. */
-        uint i;
-        for(i = 1 + NUM_ECC_DIGITS; ; ++i)
-        {
-            --p_result[i];
-            if(p_result[i] != (uint64_t)-1)
-            {
-                break;
-            }
-        }
-    }
-    p_result[NUM_ECC_DIGITS] = l_diff;
-}
-
-/* Computes p_result = p_product % curve_p
-    see PDF "Comparing Elliptic Curve Cryptography and RSA on 8-bit CPUs"
-    section "Curve-Specific Optimizations" */
-static void vli_mmod_fast(uint64_t *p_result, uint64_t *p_product)
-{
-    uint64_t l_tmp[2*NUM_ECC_DIGITS];
-
-    while(!vli_isZero(p_product + NUM_ECC_DIGITS)) /* While c1 != 0 */
-    {
-        uint64_t l_carry = 0;
-        uint i;
-
-        vli_clear(l_tmp);
-        vli_clear(l_tmp + NUM_ECC_DIGITS);
-        omega_mult(l_tmp, p_product + NUM_ECC_DIGITS); /* tmp = w * c1 */
-        vli_clear(p_product + NUM_ECC_DIGITS); /* p = c0 */
-
-        /* (c1, c0) = c0 + w * c1 */
-        for(i=0; i<NUM_ECC_DIGITS+3; ++i)
-        {
-            uint64_t l_sum = p_product[i] + l_tmp[i] + l_carry;
-            if(l_sum != p_product[i])
-            {
-                l_carry = (l_sum < p_product[i]);
-            }
-            p_product[i] = l_sum;
-        }
-    }
-
-    while(vli_cmp(p_product, curve_p) > 0)
-    {
-        vli_sub(p_product, p_product, curve_p);
-    }
-    vli_set(p_result, p_product);
-}
 
 #endif
 
